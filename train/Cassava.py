@@ -13,7 +13,6 @@ from datasets.cassava_dataset import CassavaDataset
 from models.CSFT import CrossScaleFusionTransformer
 import numpy as np
 
-
 def train(model, record, train_loader, criterion, optimizer, device):
     model.train()
     total, batch_acc, batch_loss = 0, 0, 0.
