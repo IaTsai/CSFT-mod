@@ -179,12 +179,17 @@ class CrossScaleFusionTransformer(nn.Module):
         self.ps2 = nn.PixelShuffle(2)
         self.ps4 = nn.PixelShuffle(4)
         out_c = config.hidden_size
-        in_1 = config.hidden_size + config.hidden_size//4
-        in_2 = config.hidden_size + config.hidden_size//4 + config.hidden_size//16
-        self.down1 = Conv2d(in_channels=in_1, out_channels=out_c, kernel_size=3, stride=1, padding=1)
-        self.down2 = Conv2d(in_channels=in_2, out_channels=out_c, kernel_size=3, stride=1, padding=1)
-        self.down3 = Conv2d(in_channels=in_1, out_channels=out_c, kernel_size=3, stride=1, padding=1)
-        self.down4 = Conv2d(in_channels=in_2, out_channels=out_c, kernel_size=3, stride=1, padding=1)
+
+        #in_1 = config.hidden_size + config.hidden_size//4
+        #in_2 = config.hidden_size + config.hidden_size//4 + config.hidden_size//16
+        #self.down1 = Conv2d(in_channels=in_1, out_channels=out_c, kernel_size=3, stride=1, padding=1)
+        #self.down2 = Conv2d(in_channels=in_2, out_channels=out_c, kernel_size=3, stride=1, padding=1)
+        #self.down3 = Conv2d(in_channels=in_1, out_channels=out_c, kernel_size=3, stride=1, padding=1)
+        #self.down4 = Conv2d(in_channels=in_2, out_channels=out_c, kernel_size=3, stride=1, padding=1)
+        self.down1 = Conv2d(in_channels=768 + 768, out_channels=768, kernel_size=3, stride=1, padding=1)  # 1536 -> 768
+        self.down2 = Conv2d(in_channels=768 * 3, out_channels=768, kernel_size=3, stride=1, padding=1)    # 2304 -> 768
+        self.down3 = Conv2d(in_channels=768 + 768, out_channels=768, kernel_size=3, stride=1, padding=1)  # 1536 -> 768
+        self.down4 = Conv2d(in_channels=768 * 3, out_channels=768, kernel_size=3, stride=1, padding=1)    # 2304 -> 768
 
         self.embeddings1 = Embeddings(config, img_size)
         self.embeddings2 = Embeddings(config, img_size//2)
@@ -246,9 +251,15 @@ class CrossScaleFusionTransformer(nn.Module):
         mlp5 = self.ffn_norm2(sa_a2)
         mlp5 = self.Mlp2(mlp5)
         mlp5 = mlp5 + sa_a2
-        cat_mlp2 = rearrange(mlp2, "b (h w) d -> b d h w", h=int(n**0.5))
-        cat_mlp5 = rearrange(mlp5, "b (h w) d -> b d h w", h=int((n//4)**0.5))
-        cat_mlp5 = self.ps2(cat_mlp5)
+
+        #cat_mlp2 = rearrange(mlp2, "b (h w) d -> b d h w", h=int(n**0.5))
+        #cat_mlp5 = rearrange(mlp5, "b (h w) d -> b d h w", h=int((n//4)**0.5))
+        #cat_mlp5 = self.ps2(cat_mlp5)
+        cat_mlp2 = rearrange(mlp2, "b (h w) d -> b d h w", h=int(n**0.5))  # shape: (B, D, 16, 16)
+        cat_mlp5 = rearrange(mlp5, "b (h w) d -> b d h w", h=int((n//4)**0.5))  # shape: (B, D/4, 8, 8)
+        cat_mlp5 = torch.nn.functional.interpolate(cat_mlp5, size=cat_mlp2.shape[2:], mode="nearest")
+
+
         x2_1 = torch.cat((cat_mlp2, cat_mlp5), dim=1)
         x2_1 = self.down1(x2_1)
         x2_1 = rearrange(x2_1, "b d h w->b (h w) d")
