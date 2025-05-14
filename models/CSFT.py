@@ -48,20 +48,16 @@ ACT2FN = {"gelu": torch.nn.functional.gelu, "relu": torch.nn.functional.relu, "s
 
 
 class LearnedPositionalEncoding(nn.Module):
-    def __init__(self, max_position_embeddings, embedding_dim, seq_length):
+    def __init__(self, max_position_embeddings, embedding_dim):
         super(LearnedPositionalEncoding, self).__init__()
         self.pe = nn.Embedding(max_position_embeddings, embedding_dim)
-        self.seq_length = seq_length
-        self.register_buffer(
-            "position_ids",
-            torch.arange(max_position_embeddings).expand((1, -1)),
-        )
 
-    def forward(self, x, position_ids=None):
-        if position_ids is None:
-            position_ids = self.position_ids[:, : self.seq_length]
+    def forward(self, x):
+        seq_len = x.size(1)
+        position_ids = torch.arange(seq_len, dtype=torch.long, device=x.device).unsqueeze(0)
         position_embeddings = self.pe(position_ids)
         return x + position_embeddings
+
 
 
 class Embeddings(nn.Module):
@@ -76,7 +72,12 @@ class Embeddings(nn.Module):
                                        out_channels=config.hidden_size,
                                        kernel_size=patch_size,
                                        stride=patch_size)
-        self.position_embeddings = LearnedPositionalEncoding(n_patches, config.hidden_size, n_patches)
+        #self.position_embeddings = LearnedPositionalEncoding(n_patches, config.hidden_size, n_patches)
+        #self.position_embeddings = LearnedPositionalEncoding(n_patches, config.hidden_size)
+
+        MAX_PATCHES = 1024  # 安全上限
+        self.position_embeddings = LearnedPositionalEncoding(MAX_PATCHES, config.hidden_size)
+
         self.dropout = Dropout(config.transformer["dropout_rate"])
 
     def forward(self, x):

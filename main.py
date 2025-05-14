@@ -21,7 +21,7 @@ def get_args():
     parser.add_argument("--test_model", type=str,
                         help="If testing mode is selected, please give the directory of the test model."
                              "If --test_model is NONE, we will use the default path.")
-    parser.add_argument("--dataset", choices=["BreakHis", "GlaS", "Kidney", "Lung", "Spleen", "YTMF"], default="BreakHis",
+    parser.add_argument("--dataset", choices=["BreakHis", "GlaS", "Kidney", "Lung", "Spleen", "YTMF",  "Cassava"], default="BreakHis",
                         help="Which dataset will be run.")
     parser.add_argument("--batch_size", type=int, default=285,
                         help="Batch size for training.")
@@ -53,4 +53,6 @@ if __name__ == "__main__":
         from train.GlaS import initial
     elif args.dataset == "YTMF":
         from train.YTMF import initial
+    elif args.dataset == "Cassava":
+        from train.Cassava import initial
     initial(args)
