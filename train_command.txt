@@ -1,0 +1,1 @@
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=4 python main.py --name cassava_training --dataset Cassava --img_size 256 --train --batch_size 32 --epochs 100 --learning_rate 1e-4
