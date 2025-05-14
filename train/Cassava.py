@@ -12,11 +12,22 @@ from torchvision import transforms
 from datasets.cassava_dataset import CassavaDataset
 from models.CSFT import CrossScaleFusionTransformer
 import numpy as np
+from tqdm import tqdm
+
+
+print("Using device:", torch.cuda.current_device())   # 印出 index
+print("Device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
 
 def train(model, record, train_loader, criterion, optimizer, device):
+    print("iii-DEBUG record:", record)
+
+    record.setdefault('epoch', 0)
     model.train()
     total, batch_acc, batch_loss = 0, 0, 0.
-    for images, labels in train_loader:
+    #for images, labels in train_loader:
+    for batch_idx, (images, labels) in enumerate(tqdm(train_loader, desc=f"Epoch {record['epoch']+1}")):
+    ## 這裡的 batch_idx 自動就是 0, 1, 2, ... 的整數
+        print(f"Batch {batch_idx+1}/{len(train_loader)}")
         images, labels = images.to(device), labels.to(device)
         output = model(images, images, images)  # 簡化處理：同圖像輸入 3 次
         loss = criterion(output, labels)
@@ -62,8 +73,8 @@ def start(args, record, fold):
 
     # Dataset & Dataloader
     dataset = CassavaDataset(
-        csv_file="/mnt/sdb1/ia313553058/CSFT/CSFT/datasets/cassava-leaf-disease-classification/train.csv",
-        root_dir="/mnt/sdb1/ia313553058/CSFT/CSFT/datasets/cassava-leaf-disease-classification/train_images/",
+        csv_file="/ssd5/ia313553058/DL_林彥宇/CSFT-cassava/CSFT-mod/datasets/cassava-leaf-disease-classification/train.csv",
+        root_dir="/ssd5/ia313553058/DL_林彥宇/CSFT-cassava/CSFT-mod/datasets/cassava-leaf-disease-classification/train_images/",
         transform=transform
     )
 
@@ -74,7 +85,7 @@ def start(args, record, fold):
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     test_loader = DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
-    num_classes = len(set(pd.read_csv("/mnt/sdb1/ia313553058/CSFT/CSFT/datasets/cassava-leaf-disease-classification/train.csv")['label']))
+    num_classes = len(set(pd.read_csv("/ssd5/ia313553058/DL_林彥宇/CSFT-cassava/CSFT-mod/datasets/cassava-leaf-disease-classification/train.csv")['label']))
     model = CrossScaleFusionTransformer(args.img_size, num_classes)
     
     if args.train:

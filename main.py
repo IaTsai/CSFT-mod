@@ -23,7 +23,9 @@ def get_args():
                              "If --test_model is NONE, we will use the default path.")
     parser.add_argument("--dataset", choices=["BreakHis", "GlaS", "Kidney", "Lung", "Spleen", "YTMF",  "Cassava"], default="BreakHis",
                         help="Which dataset will be run.")
-    parser.add_argument("--batch_size", type=int, default=285,
+    #parser.add_argument("--batch_size", type=int, default=285,
+    #                    help="Batch size for training.")
+    parser.add_argument("--batch_size", type=int, default=64,
                         help="Batch size for training.")
     parser.add_argument("--epochs", type=int, default=100,
                         help="Number of epochs to train.")

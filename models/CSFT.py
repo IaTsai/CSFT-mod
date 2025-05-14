@@ -6,6 +6,8 @@ import math
 import ml_collections
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 
 ATTENTION_Q = "MultiHeadDotProductAttention_1/query"
 ATTENTION_K = "MultiHeadDotProductAttention_1/key"
@@ -189,7 +191,8 @@ class CrossScaleFusionTransformer(nn.Module):
         self.down1 = Conv2d(in_channels=768 + 768, out_channels=768, kernel_size=3, stride=1, padding=1)  # 1536 -> 768
         self.down2 = Conv2d(in_channels=768 * 3, out_channels=768, kernel_size=3, stride=1, padding=1)    # 2304 -> 768
         self.down3 = Conv2d(in_channels=768 + 768, out_channels=768, kernel_size=3, stride=1, padding=1)  # 1536 -> 768
-        self.down4 = Conv2d(in_channels=768 * 3, out_channels=768, kernel_size=3, stride=1, padding=1)    # 2304 -> 768
+        #self.down4 = Conv2d(in_channels=768 * 3, out_channels=768, kernel_size=3, stride=1, padding=1)    # 2304 -> 768
+        self.down4 = Conv2d(in_channels=1008, out_channels=768, kernel_size=3, stride=1, padding=1)
 
         self.embeddings1 = Embeddings(config, img_size)
         self.embeddings2 = Embeddings(config, img_size//2)
@@ -287,18 +290,31 @@ class CrossScaleFusionTransformer(nn.Module):
         mlp8 = self.ffn_norm3(sa_a3)
         mlp8 = self.Mlp3(mlp8)
         mlp8 = mlp8 + sa_a3
-        cat_mlp3 = rearrange(mlp3, "b (h w) d -> b d h w", h=int(n**0.5))
+
+        #cat_mlp3 = rearrange(mlp3, "b (h w) d -> b d h w", h=int(n**0.5))
+        #cat_mlp6 = rearrange(mlp6, "b (h w) d -> b d h w", h=int((n//4)**0.5))
+        #cat_mlp6 = self.ps2(cat_mlp6)
+        #cat_mlp8 = rearrange(mlp8, "b (h w) d -> b d h w", h=int((n//16)**0.5))
+        #cat_mlp8 = self.ps4(cat_mlp8)
+        cat_mlp3 = rearrange(mlp3, "b (h w) d -> b d h w", h=int(n**0.5))  # (B, C, 16, 16)
+
         cat_mlp6 = rearrange(mlp6, "b (h w) d -> b d h w", h=int((n//4)**0.5))
-        cat_mlp6 = self.ps2(cat_mlp6)
+        cat_mlp6 = F.interpolate(cat_mlp6, size=cat_mlp3.shape[2:], mode='bilinear', align_corners=False)
+
         cat_mlp8 = rearrange(mlp8, "b (h w) d -> b d h w", h=int((n//16)**0.5))
-        cat_mlp8 = self.ps4(cat_mlp8)
+        cat_mlp8 = F.interpolate(cat_mlp8, size=cat_mlp3.shape[2:], mode='bilinear', align_corners=False)
+
         x3_1 = torch.cat((cat_mlp3, cat_mlp6, cat_mlp8), dim=1)
         x3_1 = self.down2(x3_1)
         x3_1 = rearrange(x3_1, "b d h w->b (h w) d")
-        cat_mlp6 = rearrange(mlp6, "b (h w) d -> b d h w", h=int((n//4)**0.5))
-        cat_mlp8 = rearrange(mlp8, "b (h w) d -> b d h w", h=int((n//16) ** 0.5))
-        cat_mlp8 = self.ps2(cat_mlp8)
-        x3_2 = torch.cat((cat_mlp6, cat_mlp8), dim=1)
+
+        #cat_mlp6 = rearrange(mlp6, "b (h w) d -> b d h w", h=int((n//4)**0.5))
+        #cat_mlp8 = rearrange(mlp8, "b (h w) d -> b d h w", h=int((n//16) ** 0.5))
+        #cat_mlp8 = self.ps2(cat_mlp8)
+        #x3_2 = torch.cat((cat_mlp6, cat_mlp8), dim=1)
+        cat_mlp8 = F.interpolate(cat_mlp8, size=cat_mlp6.shape[2:], mode='bilinear', align_corners=False)
+        x3_2 = torch.cat((cat_mlp6, cat_mlp8), dim=1) 
+
         x3_2 = self.down3(x3_2)
         x3_2 = rearrange(x3_2, "b d h w->b (h w) d")
         # level 4
@@ -330,6 +346,17 @@ class CrossScaleFusionTransformer(nn.Module):
         cat_mlp7 = self.ps2(cat_mlp7)
         cat_mlp9 = rearrange(mlp9, "b (h w) d -> b d h w", h=int((n//16)**0.5))
         cat_mlp9 = self.ps4(cat_mlp9)
+        #x = torch.cat((cat_mlp4, cat_mlp7, cat_mlp9), dim=1)
+
+        # 統一為 cat_mlp4 的尺寸 (16x16)
+        target_size = cat_mlp4.shape[2:]  # (16, 16)
+        cat_mlp7 = torch.nn.functional.interpolate(cat_mlp7, size=target_size, mode='bilinear', align_corners=False)
+        cat_mlp9 = torch.nn.functional.interpolate(cat_mlp9, size=target_size, mode='bilinear', align_corners=False)
+
+        # 👉 加在這裡做 debug 查看各個 feature map 的 shape
+        print("iiiDEBUG: cat_mlp4, cat_mlp7, cat_mlp9 shapes:",
+            cat_mlp4.shape, cat_mlp7.shape, cat_mlp9.shape)
+        
         x = torch.cat((cat_mlp4, cat_mlp7, cat_mlp9), dim=1)
         x = self.down4(x)
         x = rearrange(x, "b d h w->b (h w) d")
