@@ -354,9 +354,9 @@ class CrossScaleFusionTransformer(nn.Module):
         cat_mlp9 = torch.nn.functional.interpolate(cat_mlp9, size=target_size, mode='bilinear', align_corners=False)
 
         # 👉 加在這裡做 debug 查看各個 feature map 的 shape
-        print("iiiDEBUG: cat_mlp4, cat_mlp7, cat_mlp9 shapes:",
-            cat_mlp4.shape, cat_mlp7.shape, cat_mlp9.shape)
-        
+#        print("iiiDEBUG: cat_mlp4, cat_mlp7, cat_mlp9 shapes:",
+#            cat_mlp4.shape, cat_mlp7.shape, cat_mlp9.shape)
+
         x = torch.cat((cat_mlp4, cat_mlp7, cat_mlp9), dim=1)
         x = self.down4(x)
         x = rearrange(x, "b d h w->b (h w) d")

@@ -14,9 +14,43 @@ from models.CSFT import CrossScaleFusionTransformer
 import numpy as np
 from tqdm import tqdm
 
+from albumentations import (
+    Compose, RandomResizedCrop, HorizontalFlip, VerticalFlip, ShiftScaleRotate,
+    HueSaturationValue, RandomBrightnessContrast, Normalize, CoarseDropout, CenterCrop, Resize, Transpose
+)
+from albumentations.pytorch import ToTensorV2
 
 print("Using device:", torch.cuda.current_device())   # 印出 index
 print("Device name:", torch.cuda.get_device_name(torch.cuda.current_device()))
+
+#New DataAugumentation
+def get_train_transforms(img_size):
+    return Compose([
+        #RandomResizedCrop(img_size, img_size),
+        #RandomResizedCrop(height=img_size, width=img_size),
+        RandomResizedCrop(size=(img_size, img_size)),
+        Transpose(p=0.5),
+        HorizontalFlip(p=0.5),
+        VerticalFlip(p=0.5),
+        ShiftScaleRotate(p=0.5),
+        HueSaturationValue(hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2, p=0.5),
+        RandomBrightnessContrast(brightness_limit=(-0.1,0.1), contrast_limit=(-0.1, 0.1), p=0.5),
+        Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
+        CoarseDropout(p=0.5),
+        #Cutout(p=0.5),
+        ToTensorV2(p=1.0),
+    ], p=1.0)
+
+def get_valid_transforms(img_size):
+    return Compose([
+        HorizontalFlip(p=0.5),
+        VerticalFlip(p=0.5),
+        CenterCrop(img_size, img_size, p=1.),
+        Resize(img_size, img_size),
+        Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
+        ToTensorV2(p=1.0),
+    ], p=1.0)
+
 
 def train(model, record, train_loader, criterion, optimizer, device):
     print("iii-DEBUG record:", record)
@@ -66,22 +100,32 @@ def test(model, record, test_loader, criterion, device):
 
 def start(args, record, fold):
     # Transformations
-    transform = transforms.Compose([
-        transforms.Resize((args.img_size, args.img_size)),
-        transforms.ToTensor(),
-    ])
+    #transform = transforms.Compose([
+    #    transforms.Resize((args.img_size, args.img_size)),
+    #    transforms.ToTensor(),
+    #])
+
+    #New DataAugumentation
+    train_transform = get_train_transforms(args.img_size)
+    valid_transform = get_valid_transforms(args.img_size)
 
     # Dataset & Dataloader
     dataset = CassavaDataset(
         csv_file="/ssd5/ia313553058/DL_林彥宇/CSFT-cassava/CSFT-mod/datasets/cassava-leaf-disease-classification/train.csv",
         root_dir="/ssd5/ia313553058/DL_林彥宇/CSFT-cassava/CSFT-mod/datasets/cassava-leaf-disease-classification/train_images/",
-        transform=transform
+        #transform=transform
+        transform=None
     )
 
     # 80/20 split
     total_size = len(dataset)
     split = int(0.8 * total_size)
     train_set, test_set = torch.utils.data.random_split(dataset, [split, total_size - split])
+
+    #New Dataugument
+    train_set.dataset.transform = train_transform
+    test_set.dataset.transform = valid_transform
+
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     test_loader = DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
